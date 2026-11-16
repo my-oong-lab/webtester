@@ -1,0 +1,41 @@
+# Binaries
+webtester
+tmp/
+main
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Documentation
+docs/
+README.md
+LICENSE
+SPEC.md
+
+# Build
+Makefile
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Tests
+*_test.go

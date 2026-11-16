@@ -7,3 +7,4 @@
 ./webtester.db-shm
 ./webtester.db-wal
 /tmp
+config.yaml

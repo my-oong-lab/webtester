@@ -1,0 +1,13 @@
+http_addr: ":9090"
+
+database:
+  path: "webtester.db"
+
+zap:
+  image: "ghcr.io/zaproxy/zaproxy:stable"
+  timeout_seconds: 1800
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
