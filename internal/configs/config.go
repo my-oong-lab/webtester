@@ -8,7 +8,8 @@ import (
 )
 
 type Config struct {
-	HTTPAddr string  `yaml:"http_addr"`
+	Version  string   `yaml:"version"`
+	HTTPAddr string   `yaml:"http_addr"`
 	Database Database `yaml:"database"`
 	Zap      Zap      `yaml:"zap"`
 	Redis    Redis    `yaml:"redis"`
@@ -59,6 +60,7 @@ func Load() Config {
 
 func defaultConfig() Config {
 	return Config{
+		Version:  "1.0.0",
 		HTTPAddr: ":9090",
 		Database: Database{Path: "webtester.db"},
 		Zap: Zap{
@@ -88,6 +90,9 @@ func loadFromYAML(path string, cfg *Config) error {
 }
 
 func overrideFromEnv(cfg *Config) {
+	if v := os.Getenv("APP_VERSION"); v != "" {
+		cfg.Version = v
+	}
 	if v := os.Getenv("HTTP_ADDR"); v != "" {
 		cfg.HTTPAddr = v
 	}

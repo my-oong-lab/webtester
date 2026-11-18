@@ -11,6 +11,7 @@ import (
 	"webtester/internal/handlers"
 	"webtester/internal/services"
 	"webtester/pkg/middleware"
+	"webtester/pkg/response"
 	"webtester/web"
 )
 
@@ -31,6 +32,10 @@ func New(cfg configs.Config, scanSvc *services.ScanService, loadSvc *services.Lo
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
+	})
+
+	r.Get("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
+		response.JSON(w, http.StatusOK, map[string]string{"version": cfg.Version})
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {

@@ -1,3 +1,4 @@
+version: "1.0.0"
 http_addr: ":9090"
 
 database:
