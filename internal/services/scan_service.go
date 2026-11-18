@@ -9,6 +9,7 @@ import (
 	"webtester/internal/clients/zap"
 	"webtester/internal/dtos"
 	"webtester/internal/stores"
+	"webtester/internal/urlutil"
 	apperr "webtester/pkg/errors"
 )
 
@@ -49,6 +50,20 @@ func (s *ScanService) Create(ctx context.Context, in dtos.CreateScanInput) (*dto
 	}
 	if in.ScanType == dtos.ScanAPI && in.OpenAPIURL == "" {
 		return nil, apperr.Validation("openapi_url is required for API scans")
+	}
+
+	if err := urlutil.ValidateExternalURL(in.TargetURL); err != nil {
+		return nil, apperr.Validation("target_url must be a valid external URL")
+	}
+	if in.OpenAPIURL != "" {
+		if err := urlutil.ValidateExternalURL(in.OpenAPIURL); err != nil {
+			return nil, apperr.Validation("openapi_url must be a valid external URL")
+		}
+	}
+	if in.Auth != nil && in.Auth.UserB != "" {
+		if err := urlutil.ValidateProbeURLs(in.TargetURL, in.BolaProbeURLs); err != nil {
+			return nil, apperr.Validation("bola probe urls invalid: " + err.Error())
+		}
 	}
 
 	scan, err := s.store.Create(ctx, stores.CreateScanParams{

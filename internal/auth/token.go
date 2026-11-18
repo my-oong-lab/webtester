@@ -25,15 +25,6 @@ type TokenConfig struct {
 	RefreshTTL    time.Duration
 }
 
-func DefaultTokenConfig() TokenConfig {
-	return TokenConfig{
-		AccessSecret:  "change-me-in-production-access-secret",
-		RefreshSecret: "change-me-in-production-refresh-secret",
-		AccessTTL:     15 * time.Minute,
-		RefreshTTL:    7 * 24 * time.Hour,
-	}
-}
-
 func GenerateAccessToken(userID, email string, cfg TokenConfig) (string, error) {
 	claims := Claims{
 		UserID: userID,

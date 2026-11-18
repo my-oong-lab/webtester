@@ -12,6 +12,7 @@ type Config struct {
 	Database Database `yaml:"database"`
 	Zap      Zap      `yaml:"zap"`
 	Redis    Redis    `yaml:"redis"`
+	Auth     Auth     `yaml:"auth"`
 }
 
 type Database struct {
@@ -27,6 +28,13 @@ type Redis struct {
 	Addr     string `yaml:"addr"`
 	Password string `yaml:"password"`
 	DB       int    `yaml:"db"`
+}
+
+type Auth struct {
+	AccessSecret  string `yaml:"access_secret"`
+	RefreshSecret string `yaml:"refresh_secret"`
+	AccessTTL     string `yaml:"access_ttl"`
+	RefreshTTL    string `yaml:"refresh_ttl"`
 }
 
 func Load() Config {
@@ -62,6 +70,12 @@ func defaultConfig() Config {
 			Password: "",
 			DB:       0,
 		},
+		Auth: Auth{
+			AccessSecret:  "",
+			RefreshSecret: "",
+			AccessTTL:     "15m",
+			RefreshTTL:    "168h",
+		},
 	}
 }
 
@@ -94,5 +108,17 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("REDIS_DB"); v != "" {
 		fmt.Sscanf(v, "%d", &cfg.Redis.DB)
+	}
+	if v := os.Getenv("AUTH_ACCESS_SECRET"); v != "" {
+		cfg.Auth.AccessSecret = v
+	}
+	if v := os.Getenv("AUTH_REFRESH_SECRET"); v != "" {
+		cfg.Auth.RefreshSecret = v
+	}
+	if v := os.Getenv("AUTH_ACCESS_TTL"); v != "" {
+		cfg.Auth.AccessTTL = v
+	}
+	if v := os.Getenv("AUTH_REFRESH_TTL"); v != "" {
+		cfg.Auth.RefreshTTL = v
 	}
 }

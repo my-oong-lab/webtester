@@ -10,6 +10,7 @@ import (
 	"webtester/internal/dtos"
 	"webtester/internal/loadtest"
 	"webtester/internal/stores"
+	"webtester/internal/urlutil"
 	apperr "webtester/pkg/errors"
 )
 
@@ -27,6 +28,19 @@ func (s *LoadTestService) Create(ctx context.Context, in dtos.CreateLoadTestInpu
 	if !in.ConfirmOwnership {
 		return nil, apperr.Validation("ownership confirmation is required")
 	}
+	if err := urlutil.ValidateExternalURL(in.TargetURL); err != nil {
+		return nil, apperr.Validation("target_url must be a valid external URL")
+	}
+	if in.DurationSeconds > 3600 {
+		return nil, apperr.Validation("duration cannot exceed 3600 seconds")
+	}
+	if in.Concurrency > 500 {
+		return nil, apperr.Validation("concurrency cannot exceed 500")
+	}
+	if in.RequestsPerSec > 10000 {
+		return nil, apperr.Validation("requests_per_sec cannot exceed 10000")
+	}
+
 	lt, err := s.store.Create(ctx, stores.CreateLoadTestParams{
 		TargetURL:       in.TargetURL,
 		Method:          in.Method,

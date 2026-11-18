@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"webtester/internal/dtos"
+	"webtester/internal/urlutil"
 )
 
 type BolaAuth struct {
@@ -23,6 +24,9 @@ func BolaProbe(ctx context.Context, probeURLs []string, auth BolaAuth) []dtos.Fi
 	client := &http.Client{Timeout: 15 * time.Second}
 	var findings []dtos.Finding
 	for _, u := range probeURLs {
+		if err := urlutil.ValidateExternalURL(u); err != nil {
+			continue
+		}
 		bodyA, statusA := fetch(client, ctx, u, auth.HeaderName, auth.UserA)
 		if statusA != http.StatusOK {
 			continue

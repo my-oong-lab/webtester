@@ -11,3 +11,9 @@ redis:
   addr: "localhost:6379"
   password: ""
   db: 0
+
+auth:
+  access_secret: ""          # Set via AUTH_ACCESS_SECRET env var
+  refresh_secret: ""         # Set via AUTH_REFRESH_SECRET env var
+  access_ttl: "15m"
+  refresh_ttl: "168h"

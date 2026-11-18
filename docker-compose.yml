@@ -5,17 +5,23 @@ services:
       dockerfile: Dockerfile
     container_name: webtester-app
     ports:
-      - "9090:9090"
+      - "${APP_PORT:-9090}:${APP_PORT:-9090}"
     environment:
-      - HTTP_ADDR=:9090
-      - DB_PATH=/data/webtester.db
-      - REDIS_ADDR=redis:6379
-      - REDIS_PASSWORD=
-      - REDIS_DB=0
-      - ZAP_IMAGE=ghcr.io/zaproxy/zaproxy:stable
-      - ZAP_TIMEOUT_SECONDS=1800
+      - HTTP_ADDR=${HTTP_ADDR:-:9090}
+      - DB_PATH=${DB_PATH:-/data/webtester.db}
+      - REDIS_ADDR=${REDIS_ADDR:-redis:6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - ZAP_IMAGE=${ZAP_IMAGE:-ghcr.io/zaproxy/zaproxy:stable}
+      - ZAP_TIMEOUT_SECONDS=${ZAP_TIMEOUT_SECONDS:-1800}
+      - AUTH_ACCESS_SECRET=${AUTH_ACCESS_SECRET:-}
+      - AUTH_REFRESH_SECRET=${AUTH_REFRESH_SECRET:-}
+      - AUTH_ACCESS_TTL=${AUTH_ACCESS_TTL:-15m}
+      - AUTH_REFRESH_TTL=${AUTH_REFRESH_TTL:-168h}
+      - CONFIG_PATH=${CONFIG_PATH:-}
     volumes:
       - webtester-data:/data
+      - ./config.yaml:/app/config.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - redis
@@ -25,7 +31,7 @@ services:
     image: redis:7-alpine
     container_name: webtester-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     restart: unless-stopped

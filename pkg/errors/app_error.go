@@ -41,3 +41,7 @@ func Unauthorized(msg string) *AppError {
 func Conflict(msg string) *AppError {
 	return &AppError{Status: 409, Code: "conflict", Message: msg}
 }
+
+func RateLimited(msg string) *AppError {
+	return &AppError{Status: 429, Code: "rate_limited", Message: msg}
+}

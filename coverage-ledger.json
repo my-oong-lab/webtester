@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "repo": "webtester",
+  "generated_at": "2026-11-16T21:00:00Z",
+  "units": [
+    {
+      "id": "auth-token",
+      "type": "auth",
+      "description": "JWT access/refresh token generation, parsing, and validation",
+      "files": ["internal/auth/token.go", "internal/auth/middleware.go"],
+      "trust_boundary": "external-client-to-api",
+      "inputs": ["Authorization header", "refresh_token JSON body"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "auth-setup",
+      "type": "auth",
+      "description": "Initial admin user setup endpoint",
+      "files": ["internal/handlers/auth_handler.go", "internal/services/auth_service.go", "internal/auth/user_store.go"],
+      "trust_boundary": "external-client-to-api",
+      "inputs": ["email", "password", "name via JSON"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "auth-login",
+      "type": "auth",
+      "description": "User login with email/password",
+      "files": ["internal/handlers/auth_handler.go", "internal/services/auth_service.go", "internal/auth/user_store.go"],
+      "trust_boundary": "external-client-to-api",
+      "inputs": ["email", "password via JSON"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "auth-refresh",
+      "type": "auth",
+      "description": "Refresh access token using refresh token",
+      "files": ["internal/handlers/auth_handler.go", "internal/services/auth_service.go", "internal/auth/token.go", "internal/auth/store.go"],
+      "trust_boundary": "external-client-to-api",
+      "inputs": ["refresh_token via JSON"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "scan-create",
+      "type": "web-input",
+      "description": "Create vulnerability scan with target URL, optional OpenAPI spec, BOLA probes",
+      "files": ["internal/handlers/scan_handler.go", "internal/services/scan_service.go", "internal/dtos/scan_dto.go"],
+      "trust_boundary": "external-client-to-zap",
+      "inputs": ["target_url", "openapi_url", "scan_type", "confirm_ownership", "auth credentials", "bola_probe_urls"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "scan-zap-docker",
+      "type": "container-exec",
+      "description": "ZAP Docker container execution with user-supplied target/spec URLs",
+      "files": ["internal/clients/zap/docker.go"],
+      "trust_boundary": "api-to-docker-host",
+      "inputs": ["target_url", "openapi_url passed to docker run"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "passive-header-checks",
+      "type": "web-input",
+      "description": "Passive HTTP header security checks against target URL",
+      "files": ["internal/checks/passive.go"],
+      "trust_boundary": "api-to-target-web",
+      "inputs": ["target_url"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "bola-probe",
+      "type": "web-input",
+      "description": "BOLA probe using two user tokens against probe URLs",
+      "files": ["internal/checks/bola.go"],
+      "trust_boundary": "api-to-target-web",
+      "inputs": ["probe_urls", "auth header name", "user_a token", "user_b token"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "loadtest-create",
+      "type": "web-input",
+      "description": "Create load test with target URL, method, headers, body",
+      "files": ["internal/handlers/loadtest_handler.go", "internal/services/loadtest_service.go", "internal/dtos/loadtest_dto.go"],
+      "trust_boundary": "external-client-to-target-web",
+      "inputs": ["target_url", "method", "headers", "body", "duration", "rps", "concurrency"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "loadtest-runner",
+      "type": "web-input",
+      "description": "Load test execution engine making HTTP requests to target",
+      "files": ["internal/loadtest/runner.go"],
+      "trust_boundary": "api-to-target-web",
+      "inputs": ["target_url", "method", "headers", "body"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "sqlite-scan-store",
+      "type": "data-store",
+      "description": "SQLite storage for scans and findings",
+      "files": ["internal/stores/scan_store.go", "internal/stores/schema.sql"],
+      "trust_boundary": "api-to-sqlite",
+      "inputs": ["scan params", "findings"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "sqlite-user-store",
+      "type": "data-store",
+      "description": "SQLite storage for users",
+      "files": ["internal/auth/user_store.go", "internal/auth/user_schema.sql"],
+      "trust_boundary": "api-to-sqlite",
+      "inputs": ["user email", "password", "name"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "sqlite-loadtest-store",
+      "type": "data-store",
+      "description": "SQLite storage for load tests",
+      "files": ["internal/stores/loadtest_store.go", "internal/stores/loadtest_schema.sql"],
+      "trust_boundary": "api-to-sqlite",
+      "inputs": ["load test params"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "redis-token-store",
+      "type": "data-store",
+      "description": "Redis storage for refresh tokens and token blacklist",
+      "files": ["internal/auth/store.go"],
+      "trust_boundary": "api-to-redis",
+      "inputs": ["user_id", "refresh_token", "access_token"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "config-load",
+      "type": "config",
+      "description": "Configuration loading from YAML and environment variables",
+      "files": ["internal/configs/config.go", "config.yaml"],
+      "trust_boundary": "file/env-to-process",
+      "inputs": ["config.yaml", "environment variables"],
+      "prior_coverage": 0
+    },
+    {
+      "id": "rate-limiting",
+      "type": "rate-limit",
+      "description": "Redis-based rate limiting implementation",
+      "files": ["internal/auth/store.go RateLimit"],
+      "trust_boundary": "external-client-to-redis",
+      "inputs": ["rate limit key"],
+      "prior_coverage": 0
+    }
+  ]
+}

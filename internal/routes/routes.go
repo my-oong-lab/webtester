@@ -2,6 +2,7 @@ package routes
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -13,22 +14,29 @@ import (
 	"webtester/web"
 )
 
-func New(cfg configs.Config, scanSvc *services.ScanService, loadSvc *services.LoadTestService, authSvc *services.AuthService, authMiddleware *auth.Middleware) http.Handler {
+func New(cfg configs.Config, scanSvc *services.ScanService, loadSvc *services.LoadTestService, authSvc *services.AuthService, authMiddleware *auth.Middleware, redisStore *auth.RedisStore) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Recover)
 	r.Use(middleware.AccessLog)
+	r.Use(middleware.SecurityHeaders)
 
 	sh := handlers.NewScanHandler(scanSvc)
 	lh := handlers.NewLoadTestHandler(loadSvc)
 	ah := handlers.NewAuthHandler(authSvc)
+
+	authRateLimit := middleware.RateLimit(redisStore, middleware.RateLimitConfig{
+		Limit:  10,
+		Window: 1 * time.Minute,
+	})
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
-		// Public auth routes
+		// Public auth routes with rate limiting
 		r.Route("/auth", func(r chi.Router) {
+			r.Use(authRateLimit)
 			r.Get("/status", ah.Status)
 			r.Post("/setup", ah.Setup)
 			r.Post("/login", ah.Login)

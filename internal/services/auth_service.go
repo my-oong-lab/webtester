@@ -48,10 +48,13 @@ func (s *AuthService) Setup(ctx context.Context, req dtos.SetupRequest) (*dtos.T
 	return s.generateSession(ctx, user)
 }
 
+const dummyBcryptHash = "$2a$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ012345"
+
 func (s *AuthService) Login(ctx context.Context, req dtos.LoginRequest) (*dtos.TokenResponse, error) {
 	user, err := s.userStore.GetByEmail(ctx, req.Email)
 	if err != nil {
 		if errors.Is(err, auth.ErrUserNotFound) {
+			_ = auth.VerifyPassword(req.Password, dummyBcryptHash)
 			return nil, apperr.Unauthorized("invalid credentials")
 		}
 		return nil, apperr.Internal("failed to retrieve user", err)

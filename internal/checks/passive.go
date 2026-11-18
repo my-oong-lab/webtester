@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"webtester/internal/dtos"
+	"webtester/internal/urlutil"
 )
 
 var requiredHeaders = map[string]string{
@@ -17,6 +18,9 @@ var requiredHeaders = map[string]string{
 }
 
 func PassiveHeaderChecks(ctx context.Context, target string) []dtos.Finding {
+	if err := urlutil.ValidateExternalURL(target); err != nil {
+		return nil
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return nil

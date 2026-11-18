@@ -27,6 +27,9 @@ RUN apk add --no-cache ca-certificates tzdata sqlite-libs
 # Copy binary from builder
 COPY --from=builder /app/webtester .
 
+# Copy example config (used as default if config.yaml not mounted)
+COPY config.example.yaml ./config.example.yaml
+
 # Create non-root user
 RUN adduser -D -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
@@ -34,5 +37,5 @@ USER appuser
 # Expose HTTP port
 EXPOSE 9090
 
-# Run the binary
-ENTRYPOINT ["./webtester"]
+# Run with config fallback: use mounted config.yaml or copy from example
+ENTRYPOINT ["/bin/sh", "-c", "if [ ! -f config.yaml ]; then cp config.example.yaml config.yaml; fi; ./webtester"]

@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"webtester/internal/auth"
@@ -36,7 +37,10 @@ func main() {
 	}
 	defer redisStore.Close()
 
-	tokenConfig := auth.DefaultTokenConfig()
+	tokenConfig, err := buildTokenConfig(cfg)
+	if err != nil {
+		log.Fatalf("auth config: %v", err)
+	}
 	authSvc := services.NewAuthService(userStore, redisStore, tokenConfig)
 	authMiddleware := auth.NewMiddleware(redisStore, tokenConfig)
 
@@ -47,9 +51,38 @@ func main() {
 	scanSvc := services.NewScanService(store, zapClient)
 	loadSvc := services.NewLoadTestService(loadStore)
 
-	r := routes.New(cfg, scanSvc, loadSvc, authSvc, authMiddleware)
+	r := routes.New(cfg, scanSvc, loadSvc, authSvc, authMiddleware, redisStore)
 	log.Printf("webtester listening on %s", cfg.HTTPAddr)
 	if err := http.ListenAndServe(cfg.HTTPAddr, r); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func buildTokenConfig(cfg configs.Config) (auth.TokenConfig, error) {
+	accessTTL, err := time.ParseDuration(cfg.Auth.AccessTTL)
+	if err != nil {
+		return auth.TokenConfig{}, err
+	}
+	refreshTTL, err := time.ParseDuration(cfg.Auth.RefreshTTL)
+	if err != nil {
+		return auth.TokenConfig{}, err
+	}
+
+	accessSecret := cfg.Auth.AccessSecret
+	refreshSecret := cfg.Auth.RefreshSecret
+
+	// Check for hardcoded defaults
+	if accessSecret == "" || accessSecret == "change-me-in-production-access-secret" {
+		return auth.TokenConfig{}, os.ErrInvalid
+	}
+	if refreshSecret == "" || refreshSecret == "change-me-in-production-refresh-secret" {
+		return auth.TokenConfig{}, os.ErrInvalid
+	}
+
+	return auth.TokenConfig{
+		AccessSecret:  accessSecret,
+		RefreshSecret: refreshSecret,
+		AccessTTL:     accessTTL,
+		RefreshTTL:    refreshTTL,
+	}, nil
 }
