@@ -1,0 +1,54 @@
+name: Build Webtester
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Docker image version/tag, such as 1.0.0.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: false
+
+      - name: Validate image version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "${VERSION}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "::error::Invalid version '${VERSION}'. Must match pattern: ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"
+            exit 1
+          fi
+
+      - name: Build Docker image
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          docker build -t "webtester:${VERSION}" .
+
+      - name: Show build summary
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          IMAGE_TAG="webtester:${VERSION}"
+          echo "Selected ref: ${{ github.ref_name }}"
+          echo "Commit SHA: ${{ github.sha }}"
+          echo "Image tag: ${IMAGE_TAG}"
+
+          {
+            echo "### Build Summary"
+            echo "- **Selected ref:** \`${{ github.ref_name }}\`"
+            echo "- **Commit SHA:** \`${{ github.sha }}\`"
+            echo "- **Docker image:** \`${IMAGE_TAG}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
