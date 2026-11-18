@@ -140,7 +140,7 @@ func (s *sqliteStore) SaveFindings(ctx context.Context, scanID string, findings 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO findings (id, scan_id, rule_id, name, severity, confidence, url, evidence, cwe, source, created_at)

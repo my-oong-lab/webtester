@@ -112,8 +112,8 @@ func Run(ctx context.Context, cfg Config, onProgress ProgressFunc) (Result, erro
 					results <- outcome{err: err, latency: lat}
 					continue
 				}
-				io.Copy(io.Discard, resp.Body)
-				resp.Body.Close()
+				_, _ = io.Copy(io.Discard, resp.Body)
+				_ = resp.Body.Close()
 				results <- outcome{status: resp.StatusCode, latency: lat}
 			}
 		}()

@@ -74,12 +74,5 @@ func (h *ScanHandler) Findings(w http.ResponseWriter, r *http.Request) {
 }
 
 func toInput(req dtos.CreateScanRequest) dtos.CreateScanInput {
-	return dtos.CreateScanInput{
-		TargetURL:        req.TargetURL,
-		OpenAPIURL:       req.OpenAPIURL,
-		ScanType:         req.ScanType,
-		ConfirmOwnership: req.ConfirmOwnership,
-		Auth:             req.Auth,
-		BolaProbeURLs:    req.BolaProbeURLs,
-	}
+	return dtos.CreateScanInput(req)
 }

@@ -103,7 +103,7 @@ func overrideFromEnv(cfg *Config) {
 		cfg.Zap.Image = v
 	}
 	if v := os.Getenv("ZAP_TIMEOUT_SECONDS"); v != "" {
-		fmt.Sscanf(v, "%d", &cfg.Zap.TimeoutSeconds)
+		_, _ = fmt.Sscanf(v, "%d", &cfg.Zap.TimeoutSeconds)
 	}
 	if v := os.Getenv("REDIS_ADDR"); v != "" {
 		cfg.Redis.Addr = v
@@ -112,7 +112,7 @@ func overrideFromEnv(cfg *Config) {
 		cfg.Redis.Password = v
 	}
 	if v := os.Getenv("REDIS_DB"); v != "" {
-		fmt.Sscanf(v, "%d", &cfg.Redis.DB)
+		_, _ = fmt.Sscanf(v, "%d", &cfg.Redis.DB)
 	}
 	if v := os.Getenv("AUTH_ACCESS_SECRET"); v != "" {
 		cfg.Auth.AccessSecret = v

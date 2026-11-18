@@ -80,16 +80,7 @@ func (h *LoadTestHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 }
 
 func toLoadTestInput(req dtos.CreateLoadTestRequest) dtos.CreateLoadTestInput {
-	return dtos.CreateLoadTestInput{
-		TargetURL:        req.TargetURL,
-		Method:           req.Method,
-		Headers:          req.Headers,
-		Body:             req.Body,
-		DurationSeconds:  req.DurationSeconds,
-		RequestsPerSec:   req.RequestsPerSec,
-		Concurrency:      req.Concurrency,
-		ConfirmOwnership: req.ConfirmOwnership,
-	}
+	return dtos.CreateLoadTestInput(req)
 }
 
 // isValidHeaderName reports whether name is a valid HTTP token (RFC 7230 §3.2.6).
