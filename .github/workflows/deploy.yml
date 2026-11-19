@@ -136,8 +136,10 @@ jobs:
           # Reconcile Podman's recorded container states with the runtime.
           podman ps --sync -a
 
-          # Reconcile the application container with the current Compose configuration.
-          # Recreate only the application if needed, without removing volumes or pruning Podman storage.
+          # Replace only the application container; preserve volumes and other services.
+          podman rm -f webtester-app
+
+          # Start the application with the current Compose configuration.
           podman-compose up -d --no-deps app
 
           echo "Application container recreated."
