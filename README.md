@@ -80,13 +80,34 @@ APP_PORT=8080 APP_VERSION=1.0.0 podman-compose up -d
   - Runs unit tests (`go test ./...`) on `ubuntu-latest`.
   - Runs `golangci-lint` with auto-fix and commit.
 
-- **`.github/workflows/build.yml`**
+- **`.github/workflows/build.yml`** — Build Only
   - Manual trigger (`workflow_dispatch`).
   - Runs on self-hosted runner (`[self-hosted, Linux, X64]`).
-  - Inputs: `version` (required), `deploy` (boolean, default: `true`).
+  - Input: `version` (required, e.g. `1.0.0`).
   - Builds container image: `webtester:<version>`.
+  - Image stored in local Podman image cache on `oong-serv`.
+
+- **`.github/workflows/deploy.yml`** — Deploy Only
+  - Manual trigger (`workflow_dispatch`).
+  - Runs on self-hosted runner (`[self-hosted, Linux, X64]`).
+  - Input: `version` (required, must match previously built image).
+  - Verifies `webtester:<version>` exists in Podman.
   - Generates `config.yaml` from GitHub Secrets/Variables.
   - Deploys via `podman-compose up -d --remove-orphans`.
+  - Health checks container and `/healthz` endpoint.
+
+### Typical Workflow
+
+1. **Build** → Run `Build Webtester` workflow with version `1.0.0`.
+   - Creates `webtester:1.0.0` in local Podman storage.
+   - No downtime, running container untouched.
+
+2. **Deploy** → Run `Deploy Webtester` workflow with version `1.0.0`.
+   - Writes `config.yaml` from GitHub Secrets/Variables.
+   - Starts/updates container with `webtester:1.0.0`.
+
+3. **Rollback** → Run `Deploy Webtester` with previous version `0.9.0`.
+   - Instant rollback without rebuild.
 
 ### GitHub Secrets & Variables Setup
 

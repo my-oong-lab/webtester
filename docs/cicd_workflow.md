@@ -96,7 +96,7 @@ No custom branch filter is specified, so GitHub's default event behavior applies
 - The workflow does not build or deploy a Docker image.
 - The workflow does not require access to the self-hosted runner.
 
-## 5. Workflow B: Build & Deploy Webtester
+## 5. Workflow B: Build Webtester
 
 ### 5.1 Workflow file
 
@@ -108,7 +108,6 @@ No custom branch filter is specified, so GitHub's default event behavior applies
 - The user manually starts the workflow from GitHub Actions.
 - The user selects the branch using GitHub's native **Run workflow** branch selector.
 - The user provides a required `version` string, for example `1.0.0`.
-- The user can toggle `deploy` (default: true).
 
 The workflow checks out `${{ github.ref_name }}`, which represents the selected ref name for the workflow run.
 
@@ -117,22 +116,89 @@ The workflow checks out `${{ github.ref_name }}`, which represents the selected 
 - Runner labels: `[self-hosted, Linux, X64]`.
 - Intended host: `oong-serv`.
 - Required GitHub Actions permission: `contents: read`.
-- Docker must be available to the runner user.
+- Podman must be available to the runner user.
 
 ### 5.4 Inputs
 
-| Input     | Type    | Required | Default | Description                                  |
-| --------- | ------- | -------: | ------- | -------------------------------------------- |
-| `version` | string  |      Yes | -       | Docker image version/tag, such as `1.0.0`.   |
-| `deploy`  | boolean |       No | `true`  | Deploy application to container after build. |
+| Input     | Type   | Required | Description                                  |
+| --------- | ------ | -------: | -------------------------------------------- |
+| `version` | string |      Yes | Container image version/tag, such as `1.0.0`. |
 
 The workflow validates the version against this pattern:
 
 `^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`
 
-Invalid values cause the workflow to fail before the Docker image is built.
+Invalid values cause the workflow to fail before the container image is built.
 
-### 5.5 Config Configuration via GitHub Actions
+### 5.5 Steps
+
+1. **Checkout selected branch**
+   - Checks out the branch/ref selected in GitHub's workflow UI.
+   - Uses `persist-credentials: false`.
+2. **Validate image version**
+   - Validates the supplied version string against pattern.
+3. **Build container image**
+   - Runs `podman build -t "webtester:${VERSION}" .`.
+   - Uses the checked-out repository root as the build context.
+   - Assumes the `Dockerfile` is in the repository root.
+4. **Show build summary**
+   - Records ref, commit SHA, and image tag in `$GITHUB_STEP_SUMMARY`.
+
+### 5.6 Output
+
+On successful completion, the container image is available in the local Podman engine used by the self-hosted runner, tagged as:
+
+`webtester:<version>`
+
+Example:
+
+`webtester:1.0.0`
+
+### 5.7 Acceptance criteria
+
+- The workflow can be started manually from GitHub Actions.
+- The user can select a branch/ref through GitHub's native branch selector.
+- The user must provide a version.
+- Invalid versions fail before the build step.
+- The selected revision is checked out into the runner's workspace.
+- The container image is built with the requested version tag.
+- The workflow does not push the image to a registry.
+- The workflow does not restart, replace, or deploy a running Webtester container.
+- The workflow does not require SSH credentials to access `oong-serv`, because the job runs on that host's self-hosted runner.
+
+## 6. Workflow C: Deploy Webtester
+
+### 6.1 Workflow file
+
+`.github/workflows/deploy.yml`
+
+### 6.2 Trigger conditions
+
+- Trigger: `workflow_dispatch` only.
+- The user manually starts the workflow from GitHub Actions.
+- The user selects the branch using GitHub's native **Run workflow** branch selector.
+- The user provides a required `version` string matching a previously built image.
+
+The workflow checks out `${{ github.ref_name }}`, which represents the selected ref name for the workflow run.
+
+### 6.3 Execution environment
+
+- Runner labels: `[self-hosted, Linux, X64]`.
+- Intended host: `oong-serv`.
+- Required GitHub Actions permission: `contents: read`.
+- Podman must be available to the runner user.
+
+### 6.4 Inputs
+
+| Input     | Type   | Required | Description                                  |
+| --------- | ------ | -------: | -------------------------------------------- |
+| `version` | string |      Yes | Container image version to deploy (must exist from Build workflow). |
+
+The workflow validates the version against this pattern:
+
+`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`
+
+### 6.5 Config Configuration via GitHub Actions
 
 Configuration is managed completely via GitHub Repository Settings (**Settings â†’ Secrets and variables â†’ Actions**).
 
@@ -141,6 +207,7 @@ Configuration is managed completely via GitHub Repository Settings (**Settings â
 - `DB_PATH` (default: `/data/webtester.db`)
 - `ZAP_IMAGE` (default: `ghcr.io/zaproxy/zaproxy:stable`)
 - `ZAP_TIMEOUT_SECONDS` (default: `1800`)
+- `ZAP_RUNTIME` (default: `podman`)
 - `REDIS_ADDR` (default: `redis:6379`)
 - `REDIS_DB` (default: `0`)
 - `AUTH_ACCESS_TTL` (default: `15m`)
@@ -151,51 +218,34 @@ Configuration is managed completely via GitHub Repository Settings (**Settings â
 - `AUTH_REFRESH_SECRET`
 - `REDIS_PASSWORD`
 
-### 5.6 Jobs
+### 6.6 Steps
 
-#### Job 1: build
 1. **Checkout selected branch**
    - Checks out the branch/ref selected in GitHub's workflow UI.
    - Uses `persist-credentials: false`.
-2. **Validate image version**
-   - Validates the supplied version string against pattern.
-3. **Build container image**
-   - Runs `podman build -t "webtester:${VERSION}" .`.
-4. **Show build summary**
-   - Records ref, commit SHA, and image tag in `$GITHUB_STEP_SUMMARY`.
-
-#### Job 2: deploy (runs if `inputs.deploy == true`)
-1. **Checkout selected branch**
-2. **Generate `config.yaml`**
+2. **Verify image exists**
+   - Checks `podman image exists "webtester:<version>"`.
+   - Fails if image not found with instruction to run Build workflow first.
+3. **Generate `config.yaml`**
    - Generates production `config.yaml` dynamically from GitHub Variables & Secrets.
-3. **Deploy with Podman Compose**
-   - Runs `podman-compose up -d --remove-orphans`.
+4. **Deploy with Podman Compose**
+   - Runs `podman-compose up -d --remove-orphans` with `APP_VERSION=<version>`.
    - Starts or updates container using `webtester:<version>` image with mounted `config.yaml`.
-4. **Show deployment summary**
+5. **Verify container health**
+   - Waits up to 60s for container to be running and `/healthz` endpoint to return 200.
+6. **Show deployment summary**
+   - Records version and timestamp in `$GITHUB_STEP_SUMMARY`.
 
-### 5.6 Output
-
-On successful completion, the Docker image is available in the local Docker engine used by the self-hosted runner, tagged as:
-
-`webtester:<version>`
-
-Example:
-
-`webtester:1.0.0`
-
-The workflow does not add a `latest` tag.
-
-### 5.7 Acceptance criteria
+### 6.7 Acceptance criteria
 
 - The workflow can be started manually from GitHub Actions.
 - The user can select a branch/ref through GitHub's native branch selector.
-- The user must provide a version.
-- Invalid versions fail before the Docker build step.
-- The selected revision is checked out into the runner's workspace.
-- The Docker image is built with the requested version tag.
+- The user must provide a version matching a previously built image.
+- Invalid or missing images fail before deploy step with clear message.
+- The container is deployed with the requested version tag.
+- Container health is verified after deployment.
 - The workflow does not push the image to a registry.
-- The workflow does not restart, replace, or deploy a running Webtester container.
-- The workflow does not require SSH credentials to access `oong-serv`, because the job runs on that host's self-hosted runner.
+- The workflow does not require SSH credentials to access `oong-serv`.
 
 ## 6. Repository and Workspace Handling
 
@@ -207,11 +257,13 @@ The test and build jobs/workflows perform their own checkout. The test workflow 
 
 ## 7. Workflow Independence
 
-The test and build workflows are independent.
+The test, build, and deploy workflows are independent.
 
 - A successful test run does not automatically authorize or trigger a build.
 - A failed test run does not, by itself, prevent a user from manually starting the build workflow.
 - The build workflow does not download or reuse test artifacts; it checks out the selected source revision independently.
+- The deploy workflow requires a previously built image but does not require the build workflow to have run in the same session. A user can build one day and deploy days later.
+- The deploy workflow does not download or reuse build artifacts; it verifies image existence in local Podman storage.
 
 If build eligibility must depend on successful tests for the exact same commit, an additional coordination or verification mechanism must be specified and implemented.
 
@@ -226,23 +278,25 @@ If build eligibility must depend on successful tests for the exact same commit, 
 
 ## 9. Operational Requirements
 
-Before using the build workflow, verify on `oong-serv` that:
+Before using the build and deploy workflows, verify on `oong-serv` that:
 
 - The self-hosted runner service is online.
 - The runner has the expected labels.
 - `podman ps` works under the same operating-system user that runs the runner.
 - The Podman daemon is running.
 - The repository's Dockerfile builds successfully with the provided build context.
+- The Podman socket is available for container management (e.g. `systemctl --user enable --now podman.socket`).
 
-The built image remains in the Docker engine used by the runner. If the runner is later moved to another machine, the image will be built on that machine instead.
+The built image remains in the Podman engine used by the runner. If the runner is later moved to another machine, the image will be built on that machine instead. Previously built images are available for deployment without rebuild.
 
 ## 10. Non-Functional Requirements
 
-- **Maintainability:** testing and image building are defined in separate workflow files.
-- **Traceability:** the build summary records the selected ref, commit SHA, and image tag.
-- **Repeatability:** a user can select a source ref and specify an explicit image version.
+- **Maintainability:** testing, image building, and deployment are defined in separate workflow files.
+- **Traceability:** build summary records ref, commit SHA, and image tag; deploy summary records version and timestamp.
+- **Repeatability:** a user can select a source ref and specify an explicit image version; deploy can target any previously built version.
 - **Least privilege:** workflows request read-only repository contents permission.
-- **Failure visibility:** failed tests, invalid version input, or Docker build failures cause the corresponding workflow run to fail.
+- **Failure visibility:** failed tests, invalid version input, missing image, or build/deploy failures cause the corresponding workflow run to fail.
+- **Rollback capability:** any previously built version can be deployed instantly without rebuild.
 
 ## 11. Known Limitations and Future Enhancements
 
@@ -272,5 +326,9 @@ The implementation is considered complete when:
 - [X] The build workflow supports GitHub's native branch selector.
 - [X] The build workflow requires and validates an image version.
 - [X] The build workflow creates `webtester:<version>` on the self-hosted runner.
+- [X] `.github/workflows/deploy.yml` can be manually triggered.
+- [X] The deploy workflow verifies image exists before deploying.
+- [X] The deploy workflow generates `config.yaml` from GitHub Variables/Secrets.
+- [X] The deploy workflow health-checks container after deployment.
 - [X] Neither workflow performs an unrequested deployment or registry push.
-- [X] Both workflows have been tested with a successful run and an expected failure scenario.
+- [X] All three workflows have been tested with a successful run and an expected failure scenario.

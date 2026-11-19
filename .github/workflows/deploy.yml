@@ -1,0 +1,145 @@
+name: Deploy Webtester
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Container image version to deploy (must exist from Build workflow)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: false
+
+      - name: Verify image exists
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! podman image exists "webtester:${VERSION}"; then
+            echo "::error::Image 'webtester:${VERSION}' not found in local Podman storage."
+            echo "Run the 'Build Webtester' workflow first with the same version."
+            exit 1
+          fi
+
+      - name: Generate config.yaml from GitHub Variables & Secrets
+        env:
+          CONFIG_VERSION: ${{ inputs.version }}
+          CONFIG_HTTP_ADDR: ${{ vars.HTTP_ADDR }}
+          CONFIG_DB_PATH: ${{ vars.DB_PATH }}
+          CONFIG_ZAP_IMAGE: ${{ vars.ZAP_IMAGE }}
+          CONFIG_ZAP_TIMEOUT: ${{ vars.ZAP_TIMEOUT_SECONDS }}
+          CONFIG_ZAP_RUNTIME: ${{ vars.ZAP_RUNTIME }}
+          CONFIG_REDIS_ADDR: ${{ vars.REDIS_ADDR }}
+          CONFIG_REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          CONFIG_REDIS_DB: ${{ vars.REDIS_DB }}
+          CONFIG_AUTH_ACCESS_SECRET: ${{ secrets.AUTH_ACCESS_SECRET }}
+          CONFIG_AUTH_REFRESH_SECRET: ${{ secrets.AUTH_REFRESH_SECRET }}
+          CONFIG_AUTH_ACCESS_TTL: ${{ vars.AUTH_ACCESS_TTL }}
+          CONFIG_AUTH_REFRESH_TTL: ${{ vars.AUTH_REFRESH_TTL }}
+        run: |
+          python3 -c "
+          import os, json
+
+          def q(v):
+              return json.dumps(str(v))
+
+          def get_env(key, default):
+              v = os.environ.get(key, '')
+              return default if v == '' else v
+
+          timeout = 1800
+          try:
+              timeout = int(get_env('CONFIG_ZAP_TIMEOUT', '1800'))
+          except ValueError:
+              pass
+
+          redis_db = 0
+          try:
+              redis_db = int(get_env('CONFIG_REDIS_DB', '0'))
+          except ValueError:
+              pass
+
+          lines = [
+              'version: ' + q(get_env('CONFIG_VERSION', '1.0.0')),
+              'http_addr: ' + q(get_env('CONFIG_HTTP_ADDR', ':9090')),
+              '',
+              'database:',
+              '  path: ' + q(get_env('CONFIG_DB_PATH', '/data/webtester.db')),
+              '',
+              'zap:',
+              '  image: ' + q(get_env('CONFIG_ZAP_IMAGE', 'ghcr.io/zaproxy/zaproxy:stable')),
+              '  timeout_seconds: ' + str(timeout),
+              '  runtime: ' + q(get_env('CONFIG_ZAP_RUNTIME', 'podman')),
+              '',
+              'redis:',
+              '  addr: ' + q(get_env('CONFIG_REDIS_ADDR', 'redis:6379')),
+              '  password: ' + q(get_env('CONFIG_REDIS_PASSWORD', '')),
+              '  db: ' + str(redis_db),
+              '',
+              'auth:',
+              '  access_secret: ' + q(get_env('CONFIG_AUTH_ACCESS_SECRET', '')),
+              '  refresh_secret: ' + q(get_env('CONFIG_AUTH_REFRESH_SECRET', '')),
+              '  access_ttl: ' + q(get_env('CONFIG_AUTH_ACCESS_TTL', '15m')),
+              '  refresh_ttl: ' + q(get_env('CONFIG_AUTH_REFRESH_TTL', '168h')),
+          ]
+
+          with open('config.yaml', 'w') as f:
+              f.write('\n'.join(lines) + '\n')
+          "
+
+      - name: Deploy with Podman Compose
+        env:
+          APP_VERSION: ${{ inputs.version }}
+          HTTP_ADDR: ${{ vars.HTTP_ADDR }}
+          DB_PATH: ${{ vars.DB_PATH }}
+          REDIS_ADDR: ${{ vars.REDIS_ADDR }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_DB: ${{ vars.REDIS_DB }}
+          ZAP_IMAGE: ${{ vars.ZAP_IMAGE }}
+          ZAP_TIMEOUT_SECONDS: ${{ vars.ZAP_TIMEOUT_SECONDS }}
+          ZAP_RUNTIME: ${{ vars.ZAP_RUNTIME }}
+          AUTH_ACCESS_SECRET: ${{ secrets.AUTH_ACCESS_SECRET }}
+          AUTH_REFRESH_SECRET: ${{ secrets.AUTH_REFRESH_SECRET }}
+          AUTH_ACCESS_TTL: ${{ vars.AUTH_ACCESS_TTL }}
+          AUTH_REFRESH_TTL: ${{ vars.AUTH_REFRESH_TTL }}
+        run: |
+          podman-compose up -d --remove-orphans
+
+      - name: Verify container health
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          # Wait for container to be ready
+          for i in {1..30}; do
+            if podman ps --filter "name=webtester-app" --filter "status=running" | grep -q "webtester-app"; then
+              sleep 2
+              if curl -sf "http://localhost:9090/healthz" > /dev/null 2>&1; then
+                echo "Container healthy"
+                exit 0
+              fi
+            fi
+            sleep 2
+          done
+          echo "::error::Container failed to become healthy"
+          podman logs webtester-app --tail 50
+          exit 1
+
+      - name: Show deployment summary
+        run: |
+          {
+            echo "### Deployment Summary"
+            echo "- **Status:** Deployed successfully"
+            echo "- **Version:** \`${{ inputs.version }}\`"
+            echo "- **Time:** \`$(date -u '+%Y-%m-%d %H:%M:%S UTC')\`"
+          } >> "$GITHUB_STEP_SUMMARY"
