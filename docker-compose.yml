@@ -1,3 +1,4 @@
+
 services:
   app:
     image: webtester:${APP_VERSION:-1.0.0}
@@ -25,7 +26,7 @@ services:
     volumes:
       - webtester-data:/data
       - ./config.yaml:/app/config.yaml:ro
-      - /run/podman/podman.sock:/var/run/docker.sock
+      - ${XDG_RUNTIME_DIR}/podman/podman.sock:/var/run/docker.sock
     depends_on:
       - redis
     restart: unless-stopped
