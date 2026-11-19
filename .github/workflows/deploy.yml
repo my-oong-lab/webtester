@@ -15,6 +15,7 @@ jobs:
   deploy:
     name: Deploy
     runs-on: [self-hosted, Linux, X64]
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,11 +27,15 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
+          set -euo pipefail
+
           if ! podman image exists "webtester:${VERSION}"; then
             echo "::error::Image 'webtester:${VERSION}' not found in local Podman storage."
             echo "Run the 'Build Webtester' workflow first with the same version."
             exit 1
           fi
+
+          echo "Image webtester:${VERSION} exists."
 
       - name: Generate config.yaml from GitHub Variables & Secrets
         env:
@@ -48,6 +53,8 @@ jobs:
           CONFIG_AUTH_ACCESS_TTL: ${{ vars.AUTH_ACCESS_TTL }}
           CONFIG_AUTH_REFRESH_TTL: ${{ vars.AUTH_REFRESH_TTL }}
         run: |
+          set -euo pipefail
+
           python3 -c "
           import os, json
 
@@ -120,8 +127,19 @@ jobs:
           echo "Runtime directory: $XDG_RUNTIME_DIR"
           test -S "$XDG_RUNTIME_DIR/podman/podman.sock"
 
+          # Validate the resolved Compose configuration.
           podman-compose config
-          podman-compose up -d --remove-orphans
+
+          # Ensure Redis is running without explicitly removing its container.
+          podman-compose up -d redis
+
+          # Recreate only the application container.
+          # Do not remove volumes or prune Podman storage.
+          podman rm -f webtester-app || true
+
+          podman-compose up -d --no-deps app
+
+          echo "Application container recreated."
 
       - name: Verify container health
         env:
@@ -129,27 +147,69 @@ jobs:
         run: |
           set -euo pipefail
 
-          for i in {1..30}; do
-            if podman container exists webtester-app &&
-               [ "$(podman inspect --format '{{.State.Running}}' webtester-app 2>/dev/null || true)" = "true" ]; then
-              if curl -sf http://localhost:9090/healthz > /dev/null; then
-                echo "Container healthy"
-                exit 0
-              fi
+          healthy=false
+
+          for i in $(seq 1 30); do
+            running=false
+            process_ok=false
+
+            # Confirm Podman reports the container as running.
+            if [ "$(podman inspect \
+              --format '{{.State.Running}}' webtester-app 2>/dev/null || true)" = "true" ]; then
+              running=true
             fi
+
+            # Confirm the container process and HTTP endpoint work.
+            if [ "$running" = true ] &&
+               podman top webtester-app >/dev/null 2>&1 &&
+               curl -fsS --max-time 3 \
+                 http://127.0.0.1:9090/healthz >/dev/null; then
+              process_ok=true
+            fi
+
+            if [ "$process_ok" = true ]; then
+              healthy=true
+              break
+            fi
+
+            echo "Waiting for Webtester health check ($i/30)..."
             sleep 2
           done
 
-          echo "::error::Container failed to become healthy"
-          podman ps -a
-          podman logs webtester-app --tail 100 || true
-          exit 1
+          if [ "$healthy" != true ]; then
+            echo "::error::Webtester failed its process or HTTP health check."
+
+            echo "### Container status"
+            podman ps -a || true
+
+            echo "### Container inspection"
+            podman inspect webtester-app \
+              --format 'PID={{.State.Pid}} Status={{.State.Status}} Running={{.State.Running}} Error={{.State.Error}}' \
+              || true
+
+            echo "### Container processes"
+            podman top webtester-app || true
+
+            echo "### Application logs"
+            podman logs --tail 100 webtester-app || true
+
+            echo "### Redis status"
+            podman ps --filter name=webtester-redis || true
+
+            exit 1
+          fi
+
+          echo "Webtester process and HTTP health check passed."
+          podman ps --filter name=webtester-app
 
       - name: Show deployment summary
+        if: success()
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           {
             echo "### Deployment Summary"
             echo "- **Status:** Deployed successfully"
-            echo "- **Version:** \`${{ inputs.version }}\`"
+            echo "- **Version:** \`${VERSION}\`"
             echo "- **Time:** \`$(date -u '+%Y-%m-%d %H:%M:%S UTC')\`"
           } >> "$GITHUB_STEP_SUMMARY"
