@@ -135,8 +135,6 @@ jobs:
 
           # Recreate only the application container.
           # Do not remove volumes or prune Podman storage.
-          podman rm -f webtester-app || true
-
           podman-compose up -d --no-deps app
 
           echo "Application container recreated."
