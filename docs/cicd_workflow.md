@@ -96,7 +96,7 @@ No custom branch filter is specified, so GitHub's default event behavior applies
 - The workflow does not build or deploy a Docker image.
 - The workflow does not require access to the self-hosted runner.
 
-## 5. Workflow B: Build Webtester
+## 5. Workflow B: Build & Deploy Webtester
 
 ### 5.1 Workflow file
 
@@ -108,6 +108,7 @@ No custom branch filter is specified, so GitHub's default event behavior applies
 - The user manually starts the workflow from GitHub Actions.
 - The user selects the branch using GitHub's native **Run workflow** branch selector.
 - The user provides a required `version` string, for example `1.0.0`.
+- The user can toggle `deploy` (default: true).
 
 The workflow checks out `${{ github.ref_name }}`, which represents the selected ref name for the workflow run.
 
@@ -120,9 +121,10 @@ The workflow checks out `${{ github.ref_name }}`, which represents the selected 
 
 ### 5.4 Inputs
 
-| Input       | Type   | Required | Description                                  |
-| ----------- | ------ | -------: | -------------------------------------------- |
-| `version` | string |      Yes | Docker image version/tag, such as `1.0.0`. |
+| Input     | Type    | Required | Default | Description                                  |
+| --------- | ------- | -------: | ------- | -------------------------------------------- |
+| `version` | string  |      Yes | -       | Docker image version/tag, such as `1.0.0`.   |
+| `deploy`  | boolean |       No | `true`  | Deploy application to container after build. |
 
 The workflow validates the version against this pattern:
 
@@ -130,20 +132,46 @@ The workflow validates the version against this pattern:
 
 Invalid values cause the workflow to fail before the Docker image is built.
 
-### 5.5 Steps
+### 5.5 Config Configuration via GitHub Actions
 
+Configuration is managed completely via GitHub Repository Settings (**Settings → Secrets and variables → Actions**).
+
+#### Variables (plain text):
+- `HTTP_ADDR` (default: `:9090`)
+- `DB_PATH` (default: `/data/webtester.db`)
+- `ZAP_IMAGE` (default: `ghcr.io/zaproxy/zaproxy:stable`)
+- `ZAP_TIMEOUT_SECONDS` (default: `1800`)
+- `REDIS_ADDR` (default: `redis:6379`)
+- `REDIS_DB` (default: `0`)
+- `AUTH_ACCESS_TTL` (default: `15m`)
+- `AUTH_REFRESH_TTL` (default: `168h`)
+
+#### Secrets (encrypted):
+- `AUTH_ACCESS_SECRET`
+- `AUTH_REFRESH_SECRET`
+- `REDIS_PASSWORD`
+
+### 5.6 Jobs
+
+#### Job 1: build
 1. **Checkout selected branch**
    - Checks out the branch/ref selected in GitHub's workflow UI.
-   - Uses `persist-credentials: false` so checkout credentials are not retained in the local Git configuration.
+   - Uses `persist-credentials: false`.
 2. **Validate image version**
-   - Validates the supplied version string.
-   - Stops the workflow if the version is invalid.
+   - Validates the supplied version string against pattern.
 3. **Build Docker image**
    - Runs `docker build -t "webtester:${VERSION}" .`.
-   - Uses the checked-out repository root as the Docker build context.
-   - Assumes the `Dockerfile` is in the repository root.
 4. **Show build summary**
-   - Prints the selected ref name, commit SHA, and resulting image tag.
+   - Records ref, commit SHA, and image tag in `$GITHUB_STEP_SUMMARY`.
+
+#### Job 2: deploy (runs if `inputs.deploy == true`)
+1. **Checkout selected branch**
+2. **Generate `config.yaml`**
+   - Generates production `config.yaml` dynamically from GitHub Variables & Secrets.
+3. **Deploy with Docker Compose**
+   - Runs `docker compose up -d --remove-orphans`.
+   - Starts or updates container using `webtester:<version>` image with mounted `config.yaml`.
+4. **Show deployment summary**
 
 ### 5.6 Output
 
