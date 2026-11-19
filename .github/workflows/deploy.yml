@@ -100,6 +100,7 @@ jobs:
 
       - name: Deploy with Podman Compose
         env:
+          XDG_RUNTIME_DIR: /run/user/1000
           APP_VERSION: ${{ inputs.version }}
           HTTP_ADDR: ${{ vars.HTTP_ADDR }}
           DB_PATH: ${{ vars.DB_PATH }}
@@ -114,25 +115,34 @@ jobs:
           AUTH_ACCESS_TTL: ${{ vars.AUTH_ACCESS_TTL }}
           AUTH_REFRESH_TTL: ${{ vars.AUTH_REFRESH_TTL }}
         run: |
+          set -euo pipefail
+
+          echo "Runtime directory: $XDG_RUNTIME_DIR"
+          test -S "$XDG_RUNTIME_DIR/podman/podman.sock"
+
+          podman-compose config
           podman-compose up -d --remove-orphans
 
       - name: Verify container health
         env:
-          VERSION: ${{ inputs.version }}
+          XDG_RUNTIME_DIR: /run/user/1000
         run: |
-          # Wait for container to be ready
+          set -euo pipefail
+
           for i in {1..30}; do
-            if podman ps --filter "name=webtester-app" --filter "status=running" | grep -q "webtester-app"; then
-              sleep 2
-              if curl -sf "http://localhost:9090/healthz" > /dev/null 2>&1; then
+            if podman container exists webtester-app &&
+               [ "$(podman inspect --format '{{.State.Running}}' webtester-app 2>/dev/null || true)" = "true" ]; then
+              if curl -sf http://localhost:9090/healthz > /dev/null; then
                 echo "Container healthy"
                 exit 0
               fi
             fi
             sleep 2
           done
+
           echo "::error::Container failed to become healthy"
-          podman logs webtester-app --tail 50
+          podman ps -a
+          podman logs webtester-app --tail 100 || true
           exit 1
 
       - name: Show deployment summary
