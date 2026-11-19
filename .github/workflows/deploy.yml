@@ -133,6 +133,13 @@ jobs:
           # Ensure Redis is running without explicitly removing its container.
           podman-compose up -d redis
 
+          # Reconcile Podman's recorded container states with the runtime.
+          podman ps --sync -a
+
+          # Reconcile the application container with the current Compose configuration.
+          # Recreate only the application if needed, without removing volumes or pruning Podman storage.
+          podman-compose up -d --no-deps app
+
           # Recreate only the application container.
           # Do not remove volumes or prune Podman storage.
           podman-compose up -d --no-deps app
@@ -193,6 +200,22 @@ jobs:
 
             echo "### Redis status"
             podman ps --filter name=webtester-redis || true
+
+            echo "### Verify recorded host PID"
+            APP_PID=$(podman inspect --format '{{.State.Pid}}' webtester-app 2>/dev/null || echo 0)
+            echo "Recorded PID: $APP_PID"
+
+            if [ "$APP_PID" -gt 0 ] 2>/dev/null; then
+              ps -p "$APP_PID" -o pid,ppid,stat,args || true
+              if [ -d "/proc/$APP_PID/ns" ]; then
+                ls -l "/proc/$APP_PID/ns/mnt" || true
+              else
+                echo "Container PID or namespace is missing from /proc."
+              fi
+            fi
+
+            echo "### Podman runtime information"
+            podman info --debug
 
             exit 1
           fi
