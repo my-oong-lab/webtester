@@ -36,11 +36,11 @@ jobs:
             exit 1
           fi
 
-      - name: Build Docker image
+      - name: Build container image
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          docker build -t "webtester:${VERSION}" .
+          podman build -t "webtester:${VERSION}" .
 
       - name: Show build summary
         env:
@@ -55,7 +55,7 @@ jobs:
             echo "### Build Summary"
             echo "- **Selected ref:** \`${{ github.ref_name }}\`"
             echo "- **Commit SHA:** \`${{ github.sha }}\`"
-            echo "- **Docker image:** \`${IMAGE_TAG}\`"
+            echo "- **Container image:** \`${IMAGE_TAG}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
@@ -77,6 +77,7 @@ jobs:
           CONFIG_DB_PATH: ${{ vars.DB_PATH }}
           CONFIG_ZAP_IMAGE: ${{ vars.ZAP_IMAGE }}
           CONFIG_ZAP_TIMEOUT: ${{ vars.ZAP_TIMEOUT_SECONDS }}
+          CONFIG_ZAP_RUNTIME: ${{ vars.ZAP_RUNTIME }}
           CONFIG_REDIS_ADDR: ${{ vars.REDIS_ADDR }}
           CONFIG_REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           CONFIG_REDIS_DB: ${{ vars.REDIS_DB }}
@@ -117,6 +118,7 @@ jobs:
               'zap:',
               '  image: ' + q(get_env('CONFIG_ZAP_IMAGE', 'ghcr.io/zaproxy/zaproxy:stable')),
               '  timeout_seconds: ' + str(timeout),
+              '  runtime: ' + q(get_env('CONFIG_ZAP_RUNTIME', 'podman')),
               '',
               'redis:',
               '  addr: ' + q(get_env('CONFIG_REDIS_ADDR', 'redis:6379')),
@@ -134,7 +136,7 @@ jobs:
               f.write('\n'.join(lines) + '\n')
           "
 
-      - name: Deploy with Docker Compose
+      - name: Deploy with Podman Compose
         env:
           APP_VERSION: ${{ inputs.version }}
           HTTP_ADDR: ${{ vars.HTTP_ADDR }}
@@ -149,7 +151,7 @@ jobs:
           AUTH_ACCESS_TTL: ${{ vars.AUTH_ACCESS_TTL }}
           AUTH_REFRESH_TTL: ${{ vars.AUTH_REFRESH_TTL }}
         run: |
-          docker compose up -d --remove-orphans
+          podman-compose up -d --remove-orphans
 
       - name: Show deployment summary
         run: |

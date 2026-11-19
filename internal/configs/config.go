@@ -23,6 +23,7 @@ type Database struct {
 type Zap struct {
 	Image          string `yaml:"image"`
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
+	Runtime        string `yaml:"runtime"`
 }
 
 type Redis struct {
@@ -66,6 +67,7 @@ func defaultConfig() Config {
 		Zap: Zap{
 			Image:          "ghcr.io/zaproxy/zaproxy:stable",
 			TimeoutSeconds: 1800,
+			Runtime:        "podman",
 		},
 		Redis: Redis{
 			Addr:     "localhost:6379",
@@ -104,6 +106,9 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("ZAP_TIMEOUT_SECONDS"); v != "" {
 		_, _ = fmt.Sscanf(v, "%d", &cfg.Zap.TimeoutSeconds)
+	}
+	if v := os.Getenv("ZAP_RUNTIME"); v != "" {
+		cfg.Zap.Runtime = v
 	}
 	if v := os.Getenv("REDIS_ADDR"); v != "" {
 		cfg.Redis.Addr = v

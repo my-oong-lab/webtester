@@ -47,6 +47,7 @@ func main() {
 	zapClient := zap.NewDockerClient(
 		cfg.Zap.Image,
 		time.Duration(cfg.Zap.TimeoutSeconds)*time.Second,
+		cfg.Zap.Runtime,
 	)
 	scanSvc := services.NewScanService(store, zapClient)
 	loadSvc := services.NewLoadTestService(loadStore)

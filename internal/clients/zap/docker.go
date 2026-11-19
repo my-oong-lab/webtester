@@ -11,18 +11,22 @@ import (
 )
 
 type dockerClient struct {
-	image   string
-	timeout time.Duration
+	image     string
+	timeout   time.Duration
+	container string // "docker" or "podman"
 }
 
-func NewDockerClient(image string, timeout time.Duration) Client {
+func NewDockerClient(image string, timeout time.Duration, runtime string) Client {
 	if image == "" {
 		image = "ghcr.io/zaproxy/zaproxy:stable"
 	}
 	if timeout <= 0 {
 		timeout = 30 * time.Minute
 	}
-	return &dockerClient{image: image, timeout: timeout}
+	if runtime == "" {
+		runtime = "podman"
+	}
+	return &dockerClient{image: image, timeout: timeout, container: runtime}
 }
 
 func (c *dockerClient) Run(ctx context.Context, req RunRequest, onProgress ProgressFunc) ([]Alert, error) {
@@ -49,7 +53,7 @@ func (c *dockerClient) Run(ctx context.Context, req RunRequest, onProgress Progr
 	if onProgress != nil {
 		onProgress(5)
 	}
-	out, err := exec.CommandContext(runCtx, "docker", args...).CombinedOutput()
+	out, err := exec.CommandContext(runCtx, c.container, args...).CombinedOutput()
 	if onProgress != nil {
 		onProgress(90)
 	}

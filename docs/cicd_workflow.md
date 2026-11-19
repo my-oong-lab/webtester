@@ -159,8 +159,8 @@ Configuration is managed completely via GitHub Repository Settings (**Settings â
    - Uses `persist-credentials: false`.
 2. **Validate image version**
    - Validates the supplied version string against pattern.
-3. **Build Docker image**
-   - Runs `docker build -t "webtester:${VERSION}" .`.
+3. **Build container image**
+   - Runs `podman build -t "webtester:${VERSION}" .`.
 4. **Show build summary**
    - Records ref, commit SHA, and image tag in `$GITHUB_STEP_SUMMARY`.
 
@@ -168,8 +168,8 @@ Configuration is managed completely via GitHub Repository Settings (**Settings â
 1. **Checkout selected branch**
 2. **Generate `config.yaml`**
    - Generates production `config.yaml` dynamically from GitHub Variables & Secrets.
-3. **Deploy with Docker Compose**
-   - Runs `docker compose up -d --remove-orphans`.
+3. **Deploy with Podman Compose**
+   - Runs `podman-compose up -d --remove-orphans`.
    - Starts or updates container using `webtester:<version>` image with mounted `config.yaml`.
 4. **Show deployment summary**
 
@@ -220,7 +220,7 @@ If build eligibility must depend on successful tests for the exact same commit, 
 - Use the minimum required GitHub Actions permission (`contents: read`).
 - Do not place secrets or credentials directly in workflow files.
 - Do not configure SSH credentials for the current build workflow; SSH is unnecessary when the runner is on the target host.
-- Restrict administrative access to the self-hosted runner host and its Docker daemon. Docker access can grant substantial control over the host.
+- Restrict administrative access to the self-hosted runner host and its container runtime (Podman/Docker). Container runtime access can grant substantial control over the host.
 - Keep the self-hosted runner updated and limit which repositories and workflows are permitted to use it.
 - Review third-party actions and pin action versions according to the repository's security policy.
 
@@ -230,8 +230,8 @@ Before using the build workflow, verify on `oong-serv` that:
 
 - The self-hosted runner service is online.
 - The runner has the expected labels.
-- `docker ps` works under the same operating-system user that runs the runner.
-- The Docker daemon is running.
+- `podman ps` works under the same operating-system user that runs the runner.
+- The Podman daemon is running.
 - The repository's Dockerfile builds successfully with the provided build context.
 
 The built image remains in the Docker engine used by the runner. If the runner is later moved to another machine, the image will be built on that machine instead.
