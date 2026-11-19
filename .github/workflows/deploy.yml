@@ -140,10 +140,6 @@ jobs:
           # Recreate only the application if needed, without removing volumes or pruning Podman storage.
           podman-compose up -d --no-deps app
 
-          # Recreate only the application container.
-          # Do not remove volumes or prune Podman storage.
-          podman-compose up -d --no-deps app
-
           echo "Application container recreated."
 
       - name: Verify container health
